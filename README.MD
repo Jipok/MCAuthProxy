@@ -2,6 +2,8 @@
 
 A proxy server that allows Minecraft players to connect using unique domain names instead of passwords. Registration and management are handled through Telegram bot.
 
+![screenshot](/screenshot.png?raw=true)
+
 ## Features
 - No client modifications needed - works with vanilla Minecraft
 - No server modifications required - compatible with any Minecraft server
@@ -20,7 +22,7 @@ A proxy server that allows Minecraft players to connect using unique domain name
 ## Setup
 
 1. Create a Telegram bot through [@BotFather](https://t.me/BotFather)
-2. Clone this repository
+2. Download binary from [Releases page](https://github.com/Jipok/MCAuthProxy/releases/latest)
 3. Create `config.toml`:
 ```toml
 Listen = "25565" # Proxy port
