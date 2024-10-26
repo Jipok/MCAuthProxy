@@ -126,6 +126,33 @@ func DecodeServerBoundHandshake(packet Packet) (ServerBoundHandshake, error) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+type ServerLoginStartOLD struct { // 1.18.2 and older
+	Nickname McString
+}
+
+func (pk ServerLoginStartOLD) ToPacket() *Packet {
+	var packet = &Packet{}
+	packet.ID = ServerBoundLoginStartPacketID
+	packet.Data = pk.Nickname.Encode()
+	return packet
+}
+
+func DecodeServerBoundLoginStartOLD(packet Packet) (ServerLoginStartOLD, error) {
+	var pk ServerLoginStartOLD
+	if packet.ID != ServerBoundLoginStartPacketID {
+		return pk, ErrInvalidPacketID
+	}
+
+	_, err := packet.Scan(&pk.Nickname)
+	if err != nil {
+		return pk, err
+	}
+
+	return pk, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 type ServerLoginStart759 struct { // 1.19 - 1.19.2
 	Nickname   McString
 	HasSigData McByte
@@ -159,6 +186,44 @@ func DecodeServerBoundLoginStart759(packet Packet) (ServerLoginStart759, error) 
 	pk.HasSigData.Decode(reader)
 	if pk.HasSigData != 0 {
 		return pk, ErrUnsupported
+	}
+
+	pk.HasUUID.Decode(reader)
+	if pk.HasUUID != 0 {
+		pk.UUID.Decode(reader)
+	}
+
+	return pk, nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+type ServerLoginStart761 struct { // 1.19.3 - 1.20.1
+	Nickname McString
+	HasUUID  McByte
+	UUID     McUUID
+}
+
+func (pk ServerLoginStart761) ToPacket() *Packet {
+	var packet = &Packet{}
+	packet.ID = ServerBoundLoginStartPacketID
+	packet.Data = pk.Nickname.Encode()
+	packet.Data = append(packet.Data, pk.HasUUID.Encode()...)
+	if pk.HasUUID != 0 {
+		packet.Data = append(packet.Data, pk.UUID.Encode()...)
+	}
+	return packet
+}
+
+func DecodeServerBoundLoginStart761(packet Packet) (ServerLoginStart761, error) {
+	var pk ServerLoginStart761
+	if packet.ID != ServerBoundLoginStartPacketID {
+		return pk, ErrInvalidPacketID
+	}
+
+	reader, err := packet.Scan(&pk.Nickname)
+	if err != nil {
+		return pk, err
 	}
 
 	pk.HasUUID.Decode(reader)
