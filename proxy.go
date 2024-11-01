@@ -5,16 +5,18 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
-	NetDeadline = time.Second * 2
-	DialTimeout = time.Second * 2
+	NetDeadline = time.Second * 5
+	DialTimeout = time.Second * 5
 	ProxyBind   = ""
 )
 
@@ -181,7 +183,7 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 		return
 	}
 
-	log.Printf("User %s connected to %s. Username %s -> %s\n", userInfo.TgName, cfg.BaseDomain, passedUsername, userInfo.Nickname)
+	log.Printf("User %s connected to %s from %s. Nickname %s -> %s\n", userInfo.TgName, cfg.BaseDomain, clientConn.RemoteAddr().String(), passedUsername, userInfo.Nickname)
 
 	ProxyConnection(clientConn, cfg.MinecraftServer, peekedData)
 }
@@ -269,6 +271,12 @@ func NameUUIDFromBytes(name []byte) McUUID {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+var bufferPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 32*1024)
+	},
+}
+
 func ProxyConnection(clientConn net.Conn, serverAddr string, peekedData []byte) (err error) {
 	dialer := net.Dialer{
 		Timeout: DialTimeout,
@@ -282,31 +290,27 @@ func ProxyConnection(clientConn net.Conn, serverAddr string, peekedData []byte) 
 		return err
 	}
 
-	serverConn.Write(peekedData)
+	_, err = serverConn.Write(peekedData)
+	if err != nil {
+		log.Printf("Error writing to server connection: %v\n", err)
+		clientConn.Close()
+		serverConn.Close()
+		return err
+	}
 
 	go func() {
-		pipe(serverConn, clientConn)
+		buffer := bufferPool.Get().([]byte)
+		defer bufferPool.Put(buffer)
+		io.CopyBuffer(serverConn, clientConn, buffer)
 		clientConn.Close()
 	}()
 
 	go func() {
-		pipe(clientConn, serverConn)
+		buffer := bufferPool.Get().([]byte)
+		defer bufferPool.Put(buffer)
+		io.CopyBuffer(clientConn, serverConn, buffer)
 		serverConn.Close()
 	}()
 
 	return nil
-}
-
-func pipe(c1, c2 net.Conn) {
-	buffer := make([]byte, 0xffff)
-	for {
-		n, err := c1.Read(buffer)
-		if err != nil {
-			return
-		}
-		_, err = c2.Write(buffer[:n])
-		if err != nil {
-			return
-		}
-	}
 }

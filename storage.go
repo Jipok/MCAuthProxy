@@ -100,7 +100,7 @@ func (s *Storage) AddRecord(nickname, tgname string, id int64) (*StorageRecord, 
 		Token:    token,
 		Nickname: nickname,
 		ID:       id,
-		TgName:   tgname,
+		TgName:   strings.TrimSpace(tgname),
 	}
 
 	// Append to file
