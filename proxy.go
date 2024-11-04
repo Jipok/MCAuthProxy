@@ -96,7 +96,7 @@ func handleStatusRequest(clientConn net.Conn, handshake ServerBoundHandshake) {
 		status := StatusJSON{
 			Version: StatusVersionJSON{
 				Name:     "Some server",
-				Protocol: 769,
+				Protocol: int(handshake.ProtocolVersion),
 			},
 			Description: StatusDescriptionJSON{
 				Text: "Offline",
@@ -183,9 +183,15 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 		return
 	}
 
+	addPlayer(userInfo.Nickname)
+	updateOnlineMessage()
 	log.Printf("User %s connected to %s from %s. Nickname %s -> %s\n", userInfo.TgName, cfg.BaseDomain, clientConn.RemoteAddr().String(), passedUsername, userInfo.Nickname)
 
 	ProxyConnection(clientConn, cfg.MinecraftServer, peekedData)
+
+	removePlayer(userInfo.Nickname)
+	updateOnlineMessage()
+	log.Printf("User %s disconnected. Nickname: %s\n", userInfo.TgName, userInfo.Nickname)
 }
 
 func handleResourcePackRequest(clientConn net.Conn, reader *bufio.Reader) {
@@ -305,12 +311,10 @@ func ProxyConnection(clientConn net.Conn, serverAddr string, peekedData []byte) 
 		clientConn.Close()
 	}()
 
-	go func() {
-		buffer := bufferPool.Get().([]byte)
-		defer bufferPool.Put(buffer)
-		io.CopyBuffer(clientConn, serverConn, buffer)
-		serverConn.Close()
-	}()
+	buffer := bufferPool.Get().([]byte)
+	defer bufferPool.Put(buffer)
+	io.CopyBuffer(clientConn, serverConn, buffer)
+	serverConn.Close()
 
 	return nil
 }

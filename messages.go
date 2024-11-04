@@ -27,6 +27,7 @@ const (
 	MsgEmptyNicknameList
 	MsgListCmd
 	MsgDeleteCmd
+	MsgOnlineCmd
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -136,6 +137,10 @@ var messages = map[MessageKey]Message{
 	MsgDeleteCmd: {
 		ru: `🗑️ Удалить один из ваших никнеймов`,
 		en: `🗑️ Delete one of your nicknames`,
+	},
+	MsgOnlineCmd: {
+		ru: `👥 [ADMIN] Автообновляемый список игроков онлайн`,
+		en: `👥 [ADMIN] Auto-updating online players list`,
 	},
 }
 

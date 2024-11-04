@@ -14,21 +14,42 @@ import (
 )
 
 type Config struct {
-	Listen          string
-	MinecraftServer string
-	BaseDomain      string
-	BotToken        string
-	AdminID         int64
-	SupportName     string
-	Lang            string
+	Listen              string
+	MinecraftServer     string
+	BaseDomain          string
+	BotToken            string
+	AdminID             int64
+	OnlineMessageID     int64
+	OnlineMessageChatID int64
+	SupportName         string
+	Lang                string
 }
 
 var (
-	storage *Storage
-	cfg     Config
+	storage    *Storage
+	cfg        Config
+	configFile string
 )
 
+func SaveConfig(config Config) {
+	file, err := os.Create(configFile)
+	if err != nil {
+		log.Printf("failed to create config file: %s", err)
+		return
+	}
+	defer file.Close()
+
+	encoder := toml.NewEncoder(file)
+	if err := encoder.Encode(config); err != nil {
+		log.Printf("failed to encode config: %s", err)
+		return
+	}
+}
+
 func isValidMinecraftUsername(username string) bool {
+	if username == "online" || username == "list" || username == "delete" {
+		return false
+	}
 	if len(username) < 3 || len(username) > 16 {
 		return false
 	}
@@ -58,7 +79,7 @@ func getUserInfoByHostname(host string) *StorageRecord {
 }
 
 func main() {
-	configFile := "./config.toml"
+	configFile = "./config.toml"
 	if len(os.Args) > 1 {
 		configFile = os.Args[1]
 	}
@@ -93,6 +114,9 @@ func main() {
 	}
 	// And admin too
 	allowedIDs.Add(cfg.AdminID)
+
+	updateOnlineMessage()
+	go startServerStatusChecker()
 
 	// Handling Ctrl+C
 	sigChan := make(chan os.Signal, 1)

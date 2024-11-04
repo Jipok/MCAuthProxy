@@ -15,11 +15,14 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
-var allowedIDs = mapset.NewSet[int64]()
+var (
+	allowedIDs = mapset.NewSet[int64]()
+	bot        *gotgbot.Bot
+)
 
 func startTgBot() *ext.Updater {
-
-	bot, err := gotgbot.NewBot(cfg.BotToken, &gotgbot.BotOpts{
+	var err error
+	bot, err = gotgbot.NewBot(cfg.BotToken, &gotgbot.BotOpts{
 		BotClient: &gotgbot.BaseBotClient{
 			Client: http.Client{},
 			DefaultRequestOpts: &gotgbot.RequestOpts{
@@ -39,6 +42,10 @@ func startTgBot() *ext.Updater {
 		{
 			Command:     "delete",
 			Description: Msg(MsgDeleteCmd),
+		},
+		{
+			Command:     "online",
+			Description: Msg(MsgOnlineCmd),
 		},
 	}, nil)
 	if err != nil {
@@ -76,11 +83,32 @@ func startTgBot() *ext.Updater {
 }
 
 func defaultHandler(b *gotgbot.Bot, ctx *ext.Context) error {
-	// Allow only direct chat, no groups
+	userID := ctx.EffectiveSender.Id()
+
+	// Online
+	if cfg.AdminID == userID && strings.HasPrefix(ctx.EffectiveMessage.Text, "/online") {
+		// Delete old
+		if cfg.OnlineMessageID != 0 {
+			bot.DeleteMessage(cfg.OnlineMessageChatID, cfg.OnlineMessageID, nil)
+		}
+		// Make new message
+		sent, err := ctx.EffectiveMessage.Reply(b, ".", nil)
+		if err != nil {
+			return err
+		}
+		// Persistent
+		cfg.OnlineMessageID = sent.MessageId
+		cfg.OnlineMessageChatID = sent.Chat.Id
+		SaveConfig(cfg)
+
+		updateOnlineMessage()
+		return nil
+	}
+
+	// Allow only direct chat, no groups (Except /online)
 	if ctx.EffectiveChat.Id != ctx.EffectiveSender.Id() {
 		return nil
 	}
-	userID := ctx.EffectiveSender.Id()
 
 	// Is registered?
 	if !allowedIDs.Contains(userID) {
@@ -92,6 +120,7 @@ func defaultHandler(b *gotgbot.Bot, ctx *ext.Context) error {
 	}
 
 	if cfg.AdminID == userID {
+		// Append
 		newIDstr, IsAppendCommand := strings.CutPrefix(ctx.EffectiveMessage.Text, "/a")
 		if IsAppendCommand {
 			newID, err := strconv.ParseInt(newIDstr, 10, 64)
@@ -117,6 +146,11 @@ func defaultHandler(b *gotgbot.Bot, ctx *ext.Context) error {
 			})
 			return err
 		}
+	}
+
+	if ctx.EffectiveMessage.Text == "/online" {
+		_, err := ctx.EffectiveMessage.Reply(b, "Admin-only command", nil)
+		return err
 	}
 
 	// List
