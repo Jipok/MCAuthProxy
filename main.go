@@ -23,6 +23,7 @@ type Config struct {
 	OnlineMessageChatID int64
 	SupportName         string
 	Lang                string
+	DisableUDP          bool
 }
 
 var (
@@ -102,6 +103,9 @@ func main() {
 
 	storage = NewStorage("data.txt")
 	go startMinecraftProxy()
+	if !cfg.DisableUDP {
+		go startUdpProxy(cfg.Listen, cfg.MinecraftServer)
+	}
 	updater := startTgBot()
 
 	// Add telegram users to bot access
