@@ -168,7 +168,17 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 		fallthrough
 	case 767: // 1.21.1
 		fallthrough
-	case 768: // 1.21.2
+	case 768: // 1.21.2 - 1.21.3
+		fallthrough
+	case 769: // 1.21.4
+		fallthrough
+	case 770: // 1.21.5
+		fallthrough
+	case 771: // 1.21.6
+		fallthrough
+	case 772: // 1.21.7
+		fallthrough
+	case 773: // some next version
 		var login ServerLoginStart764
 		login, err = DecodeServerBoundLoginStart764(packet)
 		passedUsername = string(login.Nickname)
