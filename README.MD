@@ -2,6 +2,8 @@
 
 A proxy server that allows Minecraft players to connect using unique domain names instead of passwords. Registration and management are handled through Telegram bot.
 
+No more typing `/login <password>` every time. Just add the server to the server list and connect.
+
 ![screenshot](/screenshot.png?raw=true)
 
 ## Features
@@ -13,6 +15,7 @@ A proxy server that allows Minecraft players to connect using unique domain name
 - Admin approval system for new players
 - Full resource pack support - seamlessly proxies resource pack downloads
 - Compatible with all Minecraft versions
+- Works with voice chat mods (like Plasmo Voice) that use UDP traffic on the same port
 
 ## How it works
 1. Players register through Telegram bot
@@ -44,6 +47,7 @@ Lang = "en" # Language: "en" or "ru"
 
 ## Security Notes
 - Keep your subdomain private - it's your access key
+- Firewall: Ensure your real Minecraft server port (25566 in the example) is blocked by your firewall from public access. Only the proxy port (25565) should be open.
 - Proxy drops connections without valid subdomain tokens - no server information is exposed
 - Deleting a username through bot only frees it for registration, server data remains unchanged
 

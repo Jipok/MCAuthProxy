@@ -28,7 +28,7 @@ func startMinecraftProxy() {
 	}
 	defer listener.Close()
 
-	fmt.Println("Proxy server listening on ", cfg.Listen)
+	log.Println("Proxy server listening on ", cfg.Listen)
 
 	for {
 		clientConn, err := listener.Accept()
@@ -44,10 +44,10 @@ func startMinecraftProxy() {
 func handleConnection(clientConn net.Conn) {
 	reader := bufio.NewReader(clientConn)
 
-	// Установка таймаута для предотвращения зависания при ожидании данных
+	// Set a deadline to prevent hanging while waiting for data
 	clientConn.SetDeadline(time.Now().Add(NetDeadline))
 
-	// Попробуем прочитать первую строку как HTTP запрос
+	// Try to read the first line as an HTTP request
 	firstLine, err := reader.Peek(7) // GET или HTTP
 	if err == nil && (strings.HasPrefix(string(firstLine), "GET") || strings.HasPrefix(string(firstLine), "HTTP")) {
 		handleResourcePackRequest(clientConn, reader)
@@ -193,6 +193,13 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 		return
 	}
 
+	// Get client IP without the port
+	clientIP, _, _ := net.SplitHostPort(clientConn.RemoteAddr().String())
+	// Authorize this IP for UDP traffic
+	AuthorizeUDP(clientIP)
+	// De-authorize the IP when the connection is closed
+	defer DeauthorizeUDP(clientIP)
+
 	addPlayer(userInfo.Nickname)
 	updateOnlineMessage()
 	log.Printf("User %s connected to %s from %s. Nickname %s -> %s\n", userInfo.TgName, cfg.BaseDomain, clientConn.RemoteAddr().String(), passedUsername, userInfo.Nickname)
@@ -205,7 +212,7 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 }
 
 func handleResourcePackRequest(clientConn net.Conn, reader *bufio.Reader) {
-	// Читаем HTTP запрос
+	// Read the HTTP request
 	request, err := http.ReadRequest(reader)
 	if err != nil {
 		log.Printf("Error reading HTTP request: %v\n", err)
@@ -222,12 +229,12 @@ func handleResourcePackRequest(clientConn net.Conn, reader *bufio.Reader) {
 
 	log.Printf("Transferring resource pack `%s` to %s", request.URL.String(), userInfo.TgName)
 
-	// Создаем HTTP клиент для проксирования запроса
+	// Create an HTTP client to proxy the request
 	httpClient := &http.Client{
 		Timeout: time.Second * 30,
 	}
 
-	// Создаем новый запрос к целевому серверу
+	// Create a new request to the target server
 	proxyURL := "http://" + cfg.MinecraftServer + request.URL.Path
 	proxyReq, err := http.NewRequest(request.Method, proxyURL, request.Body)
 	if err != nil {
@@ -236,10 +243,10 @@ func handleResourcePackRequest(clientConn net.Conn, reader *bufio.Reader) {
 		return
 	}
 
-	// Копируем заголовки
+	// Copy headers
 	proxyReq.Header = request.Header
 
-	// Выполняем запрос
+	// Execute the request
 	response, err := httpClient.Do(proxyReq)
 	if err != nil {
 		log.Printf("Error making proxy request: %v\n", err)
@@ -248,7 +255,7 @@ func handleResourcePackRequest(clientConn net.Conn, reader *bufio.Reader) {
 	}
 	defer response.Body.Close()
 
-	// Отправляем ответ клиенту
+	// Send the response back to the client
 	err = response.Write(clientConn)
 	if err != nil {
 		log.Printf("Error writing response: %v\n", err)
