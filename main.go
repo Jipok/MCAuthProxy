@@ -30,6 +30,7 @@ var (
 	storage    *Storage
 	cfg        Config
 	configFile string
+	shutdown   bool
 )
 
 func SaveConfig(config Config) {
@@ -131,11 +132,8 @@ func main() {
 		<-sigChan
 		log.Println("Shutdown signal received, setting server status to offline...")
 
-		serverStatus.Lock()
-		serverStatus.isOnline = false
-		serverStatus.Unlock()
+		shutdown = true // Prevent update in background
 		updateOnlineMessage()
-		log.Println("Online message updated to 'Offline'.")
 
 		updater.Stop()
 		log.Println("Bot stopped.")

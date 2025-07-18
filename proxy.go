@@ -90,7 +90,9 @@ func handleConnection(clientConn net.Conn) {
 	} else if handshake.NextState == HandshakeLogin {
 		handleLoginRequest(clientConn, handshake, userInfo)
 	} else {
-		log.Printf("Unknown handshake.NextState: %v\n", err)
+		if cfg.Verbose {
+			log.Printf("Unknown handshake.NextState: %v\n", handshake.NextState)
+		}
 		clientConn.Close()
 	}
 }
@@ -124,7 +126,9 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 
 	packet, err := ReadPacket(bufio.NewReader(clientConn))
 	if err != nil {
-		log.Println("Error reading LoginStart:", err)
+		if cfg.Verbose {
+			log.Println("Error reading LoginStart:", err)
+		}
 		clientConn.Close()
 		return
 	}
@@ -193,7 +197,10 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 	updateOnlineMessage()
 	log.Printf("User %s connected to %s from %s. Nickname %s -> %s\n", userInfo.TgName, cfg.BaseDomain, clientConn.RemoteAddr().String(), passedUsername, userInfo.Nickname)
 
-	ProxyConnection(clientConn, cfg.MinecraftServer, peekedData)
+	err = ProxyConnection(clientConn, cfg.MinecraftServer, peekedData)
+	if err != nil {
+		log.Print(err)
+	}
 
 	removePlayer(userInfo.Nickname)
 	updateOnlineMessage()

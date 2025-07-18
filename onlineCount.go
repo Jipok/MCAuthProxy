@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,7 +78,7 @@ func updateOnlineMessage() {
 		}
 	}
 
-	if !serverStatus.isOnline {
+	if !serverStatus.isOnline || shutdown {
 		msg = "Offline"
 	}
 
@@ -86,7 +87,7 @@ func updateOnlineMessage() {
 		ChatId:    cfg.OnlineMessageChatID,
 		MessageId: cfg.OnlineMessageID,
 	})
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "Bad Request: message is not modified") {
 		log.Printf("Failed to update online message: %v", err)
 	}
 }
@@ -131,6 +132,9 @@ func startServerStatusChecker() {
 	defer ticker.Stop()
 
 	for {
+		if shutdown {
+			return
+		}
 		serverStatus.RLock()
 		isOnline := serverStatus.isOnline
 		serverStatus.RUnlock()
