@@ -57,13 +57,17 @@ func handleConnection(clientConn net.Conn) {
 	// Read handshake
 	packet, err := ReadPacket(reader)
 	if err != nil {
-		log.Println("Error reading handshake:", err)
+		if cfg.Verbose {
+			log.Println("Error reading handshake:", err)
+		}
 		clientConn.Close()
 		return
 	}
 	handshake, err := DecodeServerBoundHandshake(packet)
 	if err != nil {
-		log.Printf("error while parsing handshake: %v\n", err)
+		if cfg.Verbose {
+			log.Printf("error while parsing handshake: %v\n", err)
+		}
 		clientConn.Close()
 		return
 	}
@@ -71,6 +75,9 @@ func handleConnection(clientConn net.Conn) {
 	// Check access
 	userInfo := getUserInfoByHostname(handshake.Address)
 	if userInfo == nil {
+		if cfg.Verbose {
+			log.Println("Remote addr: ", clientConn.RemoteAddr().String())
+		}
 		clientConn.Close()
 		return
 	}

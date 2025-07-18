@@ -23,6 +23,7 @@ type Config struct {
 	SupportName         string
 	Lang                string
 	DisableUDP          bool
+	Verbose             bool
 }
 
 var (
@@ -65,7 +66,9 @@ func getUserInfoByHostname(host string) *StorageRecord {
 	// Check server address
 	token, correctDomain := strings.CutSuffix(host, "."+cfg.BaseDomain)
 	if !correctDomain {
-		log.Printf("Someone tried to connect using address: %s\n", host)
+		if cfg.Verbose {
+			log.Printf("Someone tried to connect using address: %s\n", host)
+		}
 		return nil
 	}
 

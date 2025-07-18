@@ -134,6 +134,7 @@ func defaultHandler(b *gotgbot.Bot, ctx *ext.Context) error {
 				return err
 			}
 
+			log.Println("New user allowed: ", ctx.EffectiveSender.Name())
 			_, err = b.SendMessage(newID, Msg(MsgApproved), nil)
 			if err != nil {
 				msg := Msg(MsgCantApprove) + "\n" + err.Error()
