@@ -130,20 +130,16 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 	}
 
 	var passedUsername string
-	switch handshake.ProtocolVersion {
-
-	// 1.18.2 and older
-	default:
+	if handshake.ProtocolVersion <= 758 { // 1.18.2 and older
 		var login ServerLoginStartOLD
 		login, err = DecodeServerBoundLoginStartOLD(packet)
 		passedUsername = string(login.Nickname)
 		login.Nickname = McString(userInfo.Nickname)
 		peekedData = append(peekedData, login.ToPacket().Encode()...)
 
-	// 1.19 - 1.19.2
-	case 759: // 1.19
-		fallthrough
-	case 760: // 1.19.2
+	} else if handshake.ProtocolVersion <= 760 { // 1.19 - 1.19.2
+		// 759: 1.19
+		// 760: 1.19.2
 		var login ServerLoginStart759
 		login, err = DecodeServerBoundLoginStart759(packet)
 		passedUsername = string(login.Nickname)
@@ -151,13 +147,10 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 		login.Nickname = McString(userInfo.Nickname)
 		login.UUID = generateUUID(string(login.Nickname))
 		peekedData = append(peekedData, login.ToPacket().Encode()...)
-
-	// 1.19.3 - 1.20.1
-	case 761: // 1.19.3
-		fallthrough
-	case 762: // 1.19.4
-		fallthrough
-	case 763: // 1.20 - 1.20.1
+	} else if handshake.ProtocolVersion <= 763 { // 1.19.3 - 1.20.1
+		// 761: 1.19.3
+		// 762: 1.19.4
+		// 763: 1.20 - 1.20.1
 		var login ServerLoginStart761
 		login, err = DecodeServerBoundLoginStart761(packet)
 		passedUsername = string(login.Nickname)
@@ -165,27 +158,16 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 		login.Nickname = McString(userInfo.Nickname)
 		login.UUID = generateUUID(string(login.Nickname))
 		peekedData = append(peekedData, login.ToPacket().Encode()...)
-
-	// 1.20.2 - last
-	case 764: // 1.20.2
-		fallthrough
-	case 765: // 1.20.3 - 1.20.4
-		fallthrough
-	case 766: // 1.20.5 - 1.20.6
-		fallthrough
-	case 767: // 1.21.1
-		fallthrough
-	case 768: // 1.21.2 - 1.21.3
-		fallthrough
-	case 769: // 1.21.4
-		fallthrough
-	case 770: // 1.21.5
-		fallthrough
-	case 771: // 1.21.6
-		fallthrough
-	case 772: // 1.21.7
-		fallthrough
-	case 773: // some next version
+	} else { // 1.20.2 - last
+		// 764: 1.20.2
+		// 765: 1.20.3 - 1.20.4
+		// 766: 1.20.5 - 1.20.6
+		// 767: 1.21.1
+		// 768: 1.21.2 - 1.21.3
+		// 769: 1.21.4
+		// 770: 1.21.5
+		// 771: 1.21.6
+		// 772: 1.21.7
 		var login ServerLoginStart764
 		login, err = DecodeServerBoundLoginStart764(packet)
 		passedUsername = string(login.Nickname)
