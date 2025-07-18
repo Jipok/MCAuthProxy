@@ -131,7 +131,10 @@ func startServerStatusChecker() {
 	defer ticker.Stop()
 
 	for {
-		if serverStatus.isOnline {
+		serverStatus.RLock()
+		isOnline := serverStatus.isOnline
+		serverStatus.RUnlock()
+		if isOnline {
 			if time.Since(serverStatus.lastCheck) > OnlineCheckInterval {
 				updateServerStatus()
 			}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -127,8 +126,16 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT)
 	go func() {
 		<-sigChan
-		fmt.Println("Received SIGINT, stopping bot...")
+		log.Println("Shutdown signal received, setting server status to offline...")
+
+		serverStatus.Lock()
+		serverStatus.isOnline = false
+		serverStatus.Unlock()
+		updateOnlineMessage()
+		log.Println("Online message updated to 'Offline'.")
+
 		updater.Stop()
+		log.Println("Bot stopped.")
 	}()
 	updater.Idle()
 }
