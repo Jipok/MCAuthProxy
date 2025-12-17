@@ -29,13 +29,13 @@ No more typing `/login <password>` every time. Just add the server to the server
 2. Download binary from [Releases page](https://github.com/Jipok/MCAuthProxy/releases/latest)
 3. Create `config.toml`:
 ```toml
-Listen = "25565" # Proxy port
-MinecraftServer = "25566" # Real Minecraft server port
-BaseDomain = "example.com" # Your domain for player subdomains
-BotToken = "123:ABC..." # Telegram bot token from BotFather
-AdminID = 123456789 # Your Telegram user ID
-SupportName = "@admin" # Support contact
-Lang = "en" # Language: "en" or "ru"
+Listen = "25565"            # Proxy port
+MinecraftServer = "25566"   # Real Minecraft server port or host:port
+BaseDomain = "example.com"  # Your domain for player subdomains
+BotToken = "123:ABC..."     # Telegram bot token from BotFather
+AdminID = 123456789         # Your Telegram user ID
+SupportName = "@admin"      # Support contact
+Lang = "en"                 # Language: "en" or "ru"
 ```
 4. Set up DNS:
    - **A** record for `example.com` pointing to your server
