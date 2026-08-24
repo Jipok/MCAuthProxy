@@ -8,7 +8,9 @@ import (
 )
 
 var (
-	ErrMcVarIntSize = errors.New("McVarInt is too big")
+	ErrMcVarIntSize    = errors.New("McVarInt is too big")
+	ErrNegativeLength  = errors.New("negative length")
+	ErrMcStringTooLong = errors.New("Minecraft string is too long")
 )
 
 // A Field is both FieldEncoder and FieldDecoder
@@ -61,6 +63,8 @@ func ReadNBytes(r DecodeReader, n int) ([]byte, error) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+const MaxMcStringBytes = 32767 * 3
+
 // Encode a McString
 func (s McString) Encode() []byte {
 	byteMcString := []byte(s)
@@ -75,6 +79,13 @@ func (s *McString) Decode(r DecodeReader) error {
 	var l McVarInt // McString length
 	if err := l.Decode(r); err != nil {
 		return err
+	}
+
+	if l < 0 {
+		return ErrNegativeLength
+	}
+	if l > MaxMcStringBytes {
+		return ErrMcStringTooLong
 	}
 
 	bb, err := ReadNBytes(r, int(l))
@@ -166,24 +177,23 @@ func (v McVarInt) Encode() []byte {
 
 // Decode a McVarInt
 func (v *McVarInt) Decode(r DecodeReader) error {
-	var n uint32
-	for i := 0; ; i++ {
-		sec, err := r.ReadByte()
+	var value uint32
+
+	for i := 0; i < 5; i++ {
+		b, err := r.ReadByte()
 		if err != nil {
 			return err
 		}
 
-		n |= uint32(sec&0x7F) << uint32(7*i)
+		value |= uint32(b&0x7F) << uint(7*i)
 
-		if i >= 5 {
-			return ErrMcVarIntSize
-		} else if sec&0x80 == 0 {
-			break
+		if b&0x80 == 0 {
+			*v = McVarInt(value)
+			return nil
 		}
 	}
 
-	*v = McVarInt(n)
-	return nil
+	return ErrMcVarIntSize
 }
 
 ///////////////////////////////////////////////////////////////////////////////

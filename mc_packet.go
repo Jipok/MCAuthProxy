@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	MaxPacketSize = 2097151
+	MaxPacketSize = 8192
 
 	ServerBoundHandshakePacketID  byte = 0x00
 	ServerBoundLoginStartPacketID byte = 0x00
