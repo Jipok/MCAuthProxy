@@ -68,6 +68,9 @@ func ReadPacket(r DecodeReader) (Packet, error) {
 		return Packet{}, fmt.Errorf("packet length too short")
 	}
 
+	if packetLength > MaxPacketSize {
+		return Packet{}, ErrPacketTooBig
+	}
 	data := make([]byte, packetLength)
 	if _, err := io.ReadFull(r, data); err != nil {
 		return Packet{}, fmt.Errorf("reading the content of the packet failed: %v", err)
@@ -266,10 +269,15 @@ func DecodeServerBoundLoginStart764(packet Packet) (ServerLoginStart764, error) 
 ///////////////////////////////////////////////////////////////////////////////
 
 type StatusJSON struct {
-	Version StatusVersionJSON `json:"version"`
-	// Players     PlaydersJSON     `json:"players"`
+	Version     StatusVersionJSON     `json:"version"`
+	Players     StatusPlayersJSON     `json:"players"`
 	Description StatusDescriptionJSON `json:"description"`
-	Favicon     string                `json:"favicon"`
+	Favicon     string                `json:"favicon,omitempty"`
+}
+
+type StatusPlayersJSON struct {
+	Max    int `json:"max"`
+	Online int `json:"online"`
 }
 
 type StatusVersionJSON struct {

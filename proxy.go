@@ -42,6 +42,7 @@ func startMinecraftProxy() {
 }
 
 func handleConnection(clientConn net.Conn) {
+	defer clientConn.Close()
 	reader := bufio.NewReader(clientConn)
 
 	// Set a deadline to prevent hanging while waiting for data
@@ -60,7 +61,6 @@ func handleConnection(clientConn net.Conn) {
 		if cfg.Verbose {
 			log.Println("Error reading handshake:", err)
 		}
-		clientConn.Close()
 		return
 	}
 	handshake, err := DecodeServerBoundHandshake(packet)
@@ -68,7 +68,6 @@ func handleConnection(clientConn net.Conn) {
 		if cfg.Verbose {
 			log.Printf("error while parsing handshake: %v\n", err)
 		}
-		clientConn.Close()
 		return
 	}
 
@@ -78,53 +77,114 @@ func handleConnection(clientConn net.Conn) {
 		if cfg.Verbose {
 			log.Println("Remote addr: ", clientConn.RemoteAddr().String())
 		}
-		clientConn.Close()
 		return
 	}
 
 	// Reset deadline
 	clientConn.SetDeadline(time.Time{})
 
-	if handshake.NextState == HandshakeStatus {
-		handleStatusRequest(clientConn, handshake)
-	} else if handshake.NextState == HandshakeLogin {
-		handleLoginRequest(clientConn, handshake, userInfo)
-	} else {
+	switch handshake.NextState {
+	case HandshakeStatus:
+		handleStatusRequest(clientConn, reader, handshake)
+
+	case HandshakeLogin:
+		handleLoginRequest(clientConn, reader, handshake, userInfo)
+
+	default:
 		if cfg.Verbose {
 			log.Printf("Unknown handshake.NextState: %v\n", handshake.NextState)
 		}
-		clientConn.Close()
 	}
 }
 
-func handleStatusRequest(clientConn net.Conn, handshake ServerBoundHandshake) {
-	err := ProxyConnection(clientConn, cfg.MinecraftServer, handshake.ToPacket().Encode())
+func handleStatusRequest(clientConn net.Conn, reader *bufio.Reader, handshake ServerBoundHandshake) {
+	request, err := ReadPacket(reader)
 	if err != nil {
-		var packet Packet
-		packet.ID = 0
-		status := StatusJSON{
-			Version: StatusVersionJSON{
-				Name:     "Some server",
-				Protocol: int(handshake.ProtocolVersion),
-			},
-			Description: StatusDescriptionJSON{
-				Text: "Offline",
-			},
+		if cfg.Verbose {
+			log.Printf("error reading status request: %v\n", err)
 		}
-		statusBytes, err := json.Marshal(status)
-		if err != nil {
-			clientConn.Close()
-			return
-		}
-		packet.Data = McString(statusBytes).Encode()
-		clientConn.Write(packet.Encode())
+		return
 	}
+
+	// Serverbound Status Request: ID 0x00, без payload.
+	if request.ID != 0x00 || len(request.Data) != 0 {
+		if cfg.Verbose {
+			log.Printf(
+				"invalid status request: id=%d, data=%d bytes\n",
+				request.ID,
+				len(request.Data),
+			)
+		}
+		return
+	}
+
+	initialData := handshake.ToPacket().Encode()
+	initialData = append(initialData, request.Encode()...)
+
+	err = ProxyConnection(
+		clientConn,
+		reader,
+		cfg.MinecraftServer,
+		initialData,
+	)
+	if err == nil {
+		return
+	}
+
+	if cfg.Verbose {
+		log.Printf("status proxy failed: %v\n", err)
+	}
+
+	sendOfflineStatus(clientConn, reader, handshake)
 }
 
-func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, userInfo *StorageRecord) {
+func sendOfflineStatus(clientConn net.Conn, reader *bufio.Reader, handshake ServerBoundHandshake) {
+	status := StatusJSON{
+		Version: StatusVersionJSON{
+			Name:     "Some server",
+			Protocol: int(handshake.ProtocolVersion),
+		},
+		Players: StatusPlayersJSON{
+			Max:    0,
+			Online: 0,
+		},
+		Description: StatusDescriptionJSON{
+			Text: "Offline",
+		},
+	}
+
+	statusBytes, err := json.Marshal(status)
+	if err != nil {
+		return
+	}
+
+	response := Packet{
+		ID:   0x00,
+		Data: McString(statusBytes).Encode(),
+	}
+	if _, err := clientConn.Write(response.Encode()); err != nil {
+		return
+	}
+
+	// Клиент после status response отправляет Ping с ID 0x01
+	// и 8-байтовым payload. Pong имеет такой же ID и payload.
+	_ = clientConn.SetDeadline(time.Now().Add(NetDeadline))
+
+	ping, err := ReadPacket(reader)
+	if err != nil {
+		return
+	}
+	if ping.ID != 0x01 || len(ping.Data) != 8 {
+		return
+	}
+
+	_, _ = clientConn.Write(ping.Encode())
+}
+
+func handleLoginRequest(clientConn net.Conn, reader *bufio.Reader, handshake ServerBoundHandshake, userInfo *StorageRecord) {
 	peekedData := handshake.ToPacket().Encode()
 
-	packet, err := ReadPacket(bufio.NewReader(clientConn))
+	packet, err := ReadPacket(reader)
 	if err != nil {
 		if cfg.Verbose {
 			log.Println("Error reading LoginStart:", err)
@@ -197,7 +257,7 @@ func handleLoginRequest(clientConn net.Conn, handshake ServerBoundHandshake, use
 	updateOnlineMessage()
 	log.Printf("User %s connected to %s from %s. Nickname %s -> %s\n", userInfo.TgName, cfg.BaseDomain, clientConn.RemoteAddr().String(), passedUsername, userInfo.Nickname)
 
-	err = ProxyConnection(clientConn, cfg.MinecraftServer, peekedData)
+	err = ProxyConnection(clientConn, reader, cfg.MinecraftServer, peekedData)
 	if err != nil {
 		log.Print(err)
 	}
@@ -296,7 +356,7 @@ var bufferPool = sync.Pool{
 	},
 }
 
-func ProxyConnection(clientConn net.Conn, serverAddr string, peekedData []byte) (err error) {
+func ProxyConnection(clientConn net.Conn, clientReader io.Reader, serverAddr string, peekedData []byte) error {
 	dialer := net.Dialer{
 		Timeout: DialTimeout,
 		LocalAddr: &net.TCPAddr{
@@ -308,26 +368,26 @@ func ProxyConnection(clientConn net.Conn, serverAddr string, peekedData []byte) 
 	if err != nil {
 		return err
 	}
+	defer serverConn.Close()
 
-	_, err = serverConn.Write(peekedData)
-	if err != nil {
-		log.Printf("Error writing to server connection: %v\n", err)
-		clientConn.Close()
-		serverConn.Close()
-		return err
+	if _, err := serverConn.Write(peekedData); err != nil {
+		return fmt.Errorf("writing initial data to server: %w", err)
 	}
 
 	go func() {
 		buffer := bufferPool.Get().([]byte)
 		defer bufferPool.Put(buffer)
-		io.CopyBuffer(serverConn, clientConn, buffer)
-		clientConn.Close()
+
+		_, _ = io.CopyBuffer(serverConn, clientReader, buffer)
+
+		if tcp, ok := serverConn.(*net.TCPConn); ok {
+			_ = tcp.CloseWrite()
+		}
 	}()
 
 	buffer := bufferPool.Get().([]byte)
 	defer bufferPool.Put(buffer)
-	io.CopyBuffer(clientConn, serverConn, buffer)
-	serverConn.Close()
 
-	return nil
+	_, err = io.CopyBuffer(clientConn, serverConn, buffer)
+	return err
 }
