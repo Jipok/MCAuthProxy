@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/BurntSushi/toml"
@@ -30,7 +31,7 @@ var (
 	storage    *Storage
 	cfg        Config
 	configFile string
-	shutdown   bool
+	shutdown   atomic.Bool
 )
 
 func SaveConfig(config Config) {
@@ -105,11 +106,13 @@ func main() {
 	}
 
 	storage = NewStorage("data.txt")
+
+	updater := startTgBot()
+
 	go startMinecraftProxy()
 	if !cfg.DisableUDP {
 		go startUdpProxy(cfg.Listen, cfg.MinecraftServer)
 	}
-	updater := startTgBot()
 
 	// Add telegram users to bot access
 	usersInfo, err := storage.readRecords()
@@ -132,7 +135,7 @@ func main() {
 		<-sigChan
 		log.Println("Shutdown signal received, setting server status to offline...")
 
-		shutdown = true // Prevent update in background
+		shutdown.Store(true) // Prevent update in background
 		updateOnlineMessage()
 
 		updater.Stop()

@@ -83,7 +83,11 @@ func updateOnlineMessage() {
 		}
 	}
 
-	if !serverStatus.isOnline || shutdown {
+	serverStatus.RLock()
+	isOnline := serverStatus.isOnline
+	serverStatus.RUnlock()
+
+	if !isOnline || shutdown.Load() {
 		msg = "Offline"
 	}
 
@@ -115,21 +119,26 @@ func updateServerStatus() {
 	}
 
 	serverStatus.Lock()
-	defer serverStatus.Unlock()
+	changed := serverStatus.isOnline != currentStatus
 
-	if serverStatus.isOnline != currentStatus {
-		serverStatus.isOnline = currentStatus
-		serverStatus.lastCheck = time.Now()
+	serverStatus.isOnline = currentStatus
+	serverStatus.lastCheck = time.Now()
 
-		if currentStatus {
-			log.Println("Server is now ONLINE")
-			bot.SendMessage(cfg.AdminID, "🟢 Server is online.", nil)
-		} else {
-			log.Println("Server is now OFFLINE")
-			bot.SendMessage(cfg.AdminID, "🔴 Server is now OFFLINE!", nil)
-		}
-		updateOnlineMessage()
+	serverStatus.Unlock()
+
+	if !changed {
+		return
 	}
+
+	if currentStatus {
+		log.Println("Server is now ONLINE")
+		bot.SendMessage(cfg.AdminID, "🟢 Server is online.", nil)
+	} else {
+		log.Println("Server is now OFFLINE")
+		bot.SendMessage(cfg.AdminID, "🔴 Server is now OFFLINE!", nil)
+	}
+
+	updateOnlineMessage()
 }
 
 func startServerStatusChecker() {
@@ -137,17 +146,16 @@ func startServerStatusChecker() {
 	defer ticker.Stop()
 
 	for {
-		if shutdown {
+		if shutdown.Load() {
 			return
 		}
+
 		serverStatus.RLock()
 		isOnline := serverStatus.isOnline
+		lastCheck := serverStatus.lastCheck
 		serverStatus.RUnlock()
-		if isOnline {
-			if time.Since(serverStatus.lastCheck) > OnlineCheckInterval {
-				updateServerStatus()
-			}
-		} else {
+
+		if !isOnline || time.Since(lastCheck) > OnlineCheckInterval {
 			updateServerStatus()
 		}
 
