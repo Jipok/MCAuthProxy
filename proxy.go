@@ -254,7 +254,7 @@ func handleLoginRequest(clientConn net.Conn, reader *bufio.Reader, handshake Ser
 	defer DeauthorizeUDP(clientIP)
 
 	addPlayer(userInfo.Nickname)
-	updateOnlineMessage()
+	go updateOnlineMessage()
 	log.Printf("User %s connected to %s from %s. Nickname %s -> %s\n", userInfo.TgName, cfg.BaseDomain, clientConn.RemoteAddr().String(), passedUsername, userInfo.Nickname)
 
 	err = ProxyConnection(clientConn, reader, cfg.MinecraftServer, peekedData)
@@ -263,7 +263,7 @@ func handleLoginRequest(clientConn net.Conn, reader *bufio.Reader, handshake Ser
 	}
 
 	removePlayer(userInfo.Nickname)
-	updateOnlineMessage()
+	go updateOnlineMessage()
 	log.Printf("User %s disconnected. Nickname: %s\n", userInfo.TgName, userInfo.Nickname)
 }
 

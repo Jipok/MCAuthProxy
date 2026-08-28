@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	OfflineCheckInterval = time.Second * 2 // Частая проверка когда офлайн
+	OfflineCheckInterval = time.Second * 4 // Частая проверка когда офлайн
 	OnlineCheckInterval  = time.Minute * 5 // Редкая проверка когда онлайн но пусто
 )
 
@@ -58,7 +58,12 @@ func getOnlinePlayers() []string {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+var updateOnlineMessageMu sync.Mutex
+
 func updateOnlineMessage() {
+	updateOnlineMessageMu.Lock()
+	defer updateOnlineMessageMu.Unlock()
+
 	if cfg.OnlineMessageID == 0 {
 		return
 	}
